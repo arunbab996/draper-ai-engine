@@ -1,5 +1,3 @@
-// Optimized Video Utilities for Speed
-
 export const extractFramesFromVideoFile = async (videoFile, frameCount = 8) => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
@@ -25,17 +23,17 @@ export const extractFramesFromVideoFile = async (videoFile, frameCount = 8) => {
         await new Promise((seekResolve) => {
           video.currentTime = time;
           video.onseeked = () => {
-            // Resize to 512px width (Standard AI input size)
-            const scaleFactor = 512 / video.videoWidth;
-            canvas.width = 512;
+            // --- SPEED OPTIMIZATION: Resize to 384px width ---
+            // This is small enough for fast upload but big enough for AI to see details.
+            const scaleFactor = 384 / video.videoWidth;
+            canvas.width = 384;
             canvas.height = video.videoHeight * scaleFactor;
 
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // --- SPEED HACK: Reduce Quality to 0.5 ---
-            // AI vision is robust; it doesn't need 100% quality.
-            // This reduces payload size drastically.
-            frames.push(canvas.toDataURL('image/jpeg', 0.5));
+            // --- SPEED OPTIMIZATION: Reduce Quality to 0.4 ---
+            // Compresses the image size significantly to beat Vercel timeouts.
+            frames.push(canvas.toDataURL('image/jpeg', 0.4));
             seekResolve();
           };
         });
@@ -79,6 +77,7 @@ export const extractAudioFromVideo = async (videoFile) => {
   }
 };
 
+// Helper function to convert AudioBuffer to WAV format
 function bufferToWave(abuffer, len) {
   let numOfChan = abuffer.numberOfChannels;
   let length = len * numOfChan * 2 + 44;
@@ -88,10 +87,13 @@ function bufferToWave(abuffer, len) {
   let offset = 0;
   let pos = 0;
 
+  // RIFF identifier
   setUint32(0x46464952);                         
   setUint32(length - 8);                         
+  // WAVE identifier
   setUint32(0x45564157);                         
 
+  // fmt chunk identifier
   setUint32(0x20746d66);                         
   setUint32(16);                                 
   setUint16(1);                                  
@@ -101,6 +103,7 @@ function bufferToWave(abuffer, len) {
   setUint16(numOfChan * 2);                      
   setUint16(16);                                 
 
+  // data chunk identifier
   setUint32(0x61746164);                         
   setUint32(length - pos - 4);                   
 
