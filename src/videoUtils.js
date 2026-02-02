@@ -1,4 +1,4 @@
-export const extractFramesFromVideoFile = async (videoFile, frameCount = 8) => {
+export const extractFramesFromVideoFile = async (videoFile, frameCount = 4) => { // REDUCED TO 4 FRAMES
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
@@ -12,28 +12,24 @@ export const extractFramesFromVideoFile = async (videoFile, frameCount = 8) => {
 
     video.onloadedmetadata = async () => {
       const duration = video.duration;
-      // Calculate specific timestamps to capture
       const timePoints = [];
       for (let i = 0; i < frameCount; i++) {
         timePoints.push((duration / frameCount) * i);
       }
 
-      // Process frames sequentially
       for (const time of timePoints) {
         await new Promise((seekResolve) => {
           video.currentTime = time;
           video.onseeked = () => {
-            // --- SPEED OPTIMIZATION: Resize to 384px width ---
-            // This is small enough for fast upload but big enough for AI to see details.
-            const scaleFactor = 384 / video.videoWidth;
-            canvas.width = 384;
+            // --- SPEED HACK: 256px is tiny but enough for AI ---
+            const scaleFactor = 256 / video.videoWidth;
+            canvas.width = 256;
             canvas.height = video.videoHeight * scaleFactor;
 
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // --- SPEED OPTIMIZATION: Reduce Quality to 0.4 ---
-            // Compresses the image size significantly to beat Vercel timeouts.
-            frames.push(canvas.toDataURL('image/jpeg', 0.4));
+            // --- SPEED HACK: Quality 0.3 (Very high compression) ---
+            frames.push(canvas.toDataURL('image/jpeg', 0.3));
             seekResolve();
           };
         });
@@ -56,28 +52,32 @@ export const extractAudioFromVideo = async (videoFile) => {
     const audioContext = new AudioContext();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     
-    // Use Mono channel (1) to reduce audio size by half
+    // --- SPEED HACK: Only take the first 20 seconds ---
+    // This prevents massive audio files from timing out the server
+    const maxDuration = 20; 
+    const trimDuration = Math.min(audioBuffer.duration, maxDuration);
+    const trimLength = trimDuration * audioBuffer.sampleRate;
+
     const offlineContext = new OfflineAudioContext(
-      1, 
-      audioBuffer.length,
+      1, // Mono
+      trimLength,
       audioBuffer.sampleRate
     );
 
     const source = offlineContext.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(offlineContext.destination);
-    source.start();
+    source.start(0, 0, trimDuration);
 
     const renderedBuffer = await offlineContext.startRendering();
     
     return bufferToWave(renderedBuffer, renderedBuffer.length);
   } catch (e) {
-    console.warn("Audio extraction failed or file has no audio", e);
+    console.warn("Audio extraction failed", e);
     return null; 
   }
 };
 
-// Helper function to convert AudioBuffer to WAV format
 function bufferToWave(abuffer, len) {
   let numOfChan = abuffer.numberOfChannels;
   let length = len * numOfChan * 2 + 44;
@@ -87,13 +87,10 @@ function bufferToWave(abuffer, len) {
   let offset = 0;
   let pos = 0;
 
-  // RIFF identifier
   setUint32(0x46464952);                         
   setUint32(length - 8);                         
-  // WAVE identifier
   setUint32(0x45564157);                         
 
-  // fmt chunk identifier
   setUint32(0x20746d66);                         
   setUint32(16);                                 
   setUint16(1);                                  
@@ -103,7 +100,6 @@ function bufferToWave(abuffer, len) {
   setUint16(numOfChan * 2);                      
   setUint16(16);                                 
 
-  // data chunk identifier
   setUint32(0x61746164);                         
   setUint32(length - pos - 4);                   
 
