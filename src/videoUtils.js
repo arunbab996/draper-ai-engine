@@ -21,14 +21,14 @@ export const extractFramesFromVideoFile = async (videoFile, frameCount = 4) => {
         await new Promise((seekResolve) => {
           video.currentTime = time;
           video.onseeked = () => {
-            // --- SPEED HACK: 256px is tiny but enough for AI ---
+            // --- SPEED OPTIMIZATION: 256px is the "AI Sweet Spot" for speed ---
             const scaleFactor = 256 / video.videoWidth;
             canvas.width = 256;
             canvas.height = video.videoHeight * scaleFactor;
 
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // --- SPEED HACK: Quality 0.3 (Very high compression) ---
+            // --- SPEED OPTIMIZATION: Heavy Compression (0.3) ---
             frames.push(canvas.toDataURL('image/jpeg', 0.3));
             seekResolve();
           };
@@ -52,14 +52,14 @@ export const extractAudioFromVideo = async (videoFile) => {
     const audioContext = new AudioContext();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     
-    // --- SPEED HACK: Only take the first 20 seconds ---
-    // This prevents massive audio files from timing out the server
-    const maxDuration = 20; 
+    // --- SPEED OPTIMIZATION: Cap at 30 Seconds ---
+    // Prevents Whisper from hanging on long files.
+    const maxDuration = 30; 
     const trimDuration = Math.min(audioBuffer.duration, maxDuration);
     const trimLength = trimDuration * audioBuffer.sampleRate;
 
     const offlineContext = new OfflineAudioContext(
-      1, // Mono
+      1, // Mono (Stereo is unnecessary for speech)
       trimLength,
       audioBuffer.sampleRate
     );
