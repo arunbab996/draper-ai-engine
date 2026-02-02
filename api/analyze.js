@@ -1,4 +1,7 @@
 // api/analyze.js
+export const maxDuration = 60; // Tell Vercel to wait up to 60 seconds (requires Pro plan usually, but worth trying)
+export const dynamic = 'force-dynamic';
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -9,27 +12,25 @@ const os = require('os');
 
 const app = express();
 
-// Vercel handles the port, we just handle the request
-app.use(express.json({ limit: '50mb' })); // Adjusted limit for Serverless
+// Increase payload limit to handle images + audio
+app.use(express.json({ limit: '50mb' })); 
 app.use(cors());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const saveTempAudioFile = (base64Audio) => {
-    // On Vercel/AWS Lambda, only /tmp is writable
     const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.wav`);
     const base64Data = base64Audio.split(';base64,').pop();
     fs.writeFileSync(tempFilePath, base64Data, { encoding: 'base64' });
     return tempFilePath;
 };
 
-// Vercel expects a default export for the serverless function
-// We wrap our logic in a standard Express route handler
 app.post('/api/analyze', async (req, res) => {
   let tempAudioPath = null;
   try {
     const { frames, framesWithTime, audio, duration } = req.body; 
     
+    // Normalize data input
     let framesToProcess = [];
     if (framesWithTime && framesWithTime.length > 0) {
         framesToProcess = framesWithTime;
@@ -44,6 +45,7 @@ app.post('/api/analyze', async (req, res) => {
 
     console.log(`[Draper] Processing ${framesToProcess.length} frames...`);
     
+    // 1. Audio Processing
     const transcriptionPromise = (async () => {
         if (!audio) return "No audio detected.";
         try {
@@ -60,8 +62,10 @@ app.post('/api/analyze', async (req, res) => {
         }
     })();
     
+    // WAIT for audio before starting GPT to avoid parallel connection issues on Vercel
     const transcriptionText = await transcriptionPromise;
 
+    // 2. Strategic Analysis
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
@@ -74,7 +78,7 @@ app.post('/api/analyze', async (req, res) => {
           *** CRITICAL OVERRIDES ***
           1. LANGUAGE: Detect Dravidian languages (Kannada, Tamil, Telugu) accurately.
           2. GEAR: Vertical (9:16) = "Smartphone (UGC)".
-          3. VOLUME: 6-8 bullet points per playbook section.
+          3. PLAYBOOK: 6-8 bullet points per section.
 
           Return VALID JSON:
           {
@@ -113,5 +117,4 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-// Export the app for Vercel Serverless
 module.exports = app;
