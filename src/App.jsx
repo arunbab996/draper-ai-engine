@@ -128,6 +128,7 @@ const generatePDF = (data) => {
     doc.text("3. NARRATIVE ARC", 14, currentY);
     currentY += 6;
 
+    // Convert scene data to simple table rows
     const sceneRows = data.scene_by_scene?.map(s => [s.timecode, s.segment.toUpperCase(), s.visual]) || [];
 
     autoTable(doc, {
@@ -144,6 +145,7 @@ const generatePDF = (data) => {
         }
     });
 
+    // Footer
     const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8); doc.setTextColor(150);
     doc.text("Powered by Draper AI Engine", 105, pageHeight - 10, { align: 'center' });
@@ -188,7 +190,7 @@ const Card = ({ children, className = "", title, icon: Icon, action }) => (
 );
 
 const LoadingView = ({ progress, frames }) => {
-    const messages = ["Extracting visual keyframes...", "Detecting spoken language...", "Synthesizing strategy...", "Generating creative brief..."];
+    const messages = ["Extracting visual keyframes...", "Analyzing color grading...", "Detecting narrative arc...", "Synthesizing strategy..."];
     const [msgIndex, setMsgIndex] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => setMsgIndex(prev => (prev + 1) % messages.length), 3000); 
@@ -248,6 +250,10 @@ const UploadView = ({ onFileSelect }) => {
         </div>
     );
 };
+
+// ==========================================
+// 3. THE REFINED STORYBOARD (Timeline V3)
+// ==========================================
 
 const VisualTimeline = ({ scenes, onJump, frames, videoDuration }) => {
     const getFrameForTime = (timecode) => {
@@ -507,7 +513,7 @@ export default function DraperApp() {
   const handleFile = async (file) => {
     setView('loading');
     setVideoUrl(URL.createObjectURL(file));
-    setProgress(5); 
+    setProgress(5);
     
     try {
         // 1. Extract Frames & Audio
@@ -526,42 +532,48 @@ export default function DraperApp() {
             timestamp: formatMinSec(index * (duration / frames.length)) 
         }));
 
-        // --- STEP 1: TRANSCRIBE (Separate Call) ---
-        setProgress(20); 
-        let transcriptText = "No audio detected.";
+        // 2. PARALLEL EXECUTION (The Speed Fix)
+        // We fire both workers at once. Total time = Max(Visuals, Audio) instead of Sum(Visuals + Audio)
+        setProgress(20);
         
-        if (audio) {
-            const transResponse = await fetch('/api/transcribe', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ audio }) 
-            });
-            if (transResponse.ok) {
-                const transData = await transResponse.json();
-                transcriptText = transData.text;
-            }
-        }
-
-        // --- STEP 2: ANALYZE (Separate Call) ---
-        setProgress(50); 
-        const timer = setInterval(() => setProgress(p => Math.min(p + 1, 95)), 200);
-
-        const response = await fetch('/api/analyze', { 
+        const visualPromise = fetch('/api/visuals', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ framesWithTime, transcript: transcriptText, duration }) 
-        });
+            body: JSON.stringify({ framesWithTime, duration }) 
+        }).then(r => r.json());
+
+        const audioPromise = audio ? fetch('/api/audio', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ audio }) 
+        }).then(r => r.json()) : Promise.resolve({});
+
+        // Fake progress timer to keep UI alive
+        const timer = setInterval(() => setProgress(p => Math.min(p + 1, 90)), 150);
+
+        // Wait for BOTH to finish
+        const [visualData, audioData] = await Promise.all([visualPromise, audioPromise]);
         
-        clearInterval(timer); 
+        clearInterval(timer);
         setProgress(100);
+
+        // 3. MERGE RESULTS
+        const mergedData = {
+            meta: audioData.meta || { product_name: "Ad Analysis", quality_score: 7 }, // Audio usually captures brand name better
+            content_xray: {
+                ...(visualData.content_xray_visuals || {}),
+                ...(audioData.content_xray_audio || {})
+            },
+            production_analysis: visualData.production_analysis || {},
+            creative_intelligence: visualData.creative_intelligence || {},
+            scene_by_scene: visualData.scene_by_scene || [],
+            communication_profile: audioData.communication_profile || {},
+            strategy: audioData.strategy || {},
+            critique: audioData.critique || {},
+            brand_takeaways: audioData.brand_takeaways || []
+        };
         
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Server Error: ${errText}`);
-        }
-        
-        const result = await response.json();
-        setAnalysisData(result);
+        setAnalysisData(mergedData);
         setTimeout(() => setView('report'), 500);
 
     } catch (e) { 
