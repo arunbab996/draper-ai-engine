@@ -61,7 +61,7 @@ app.post('/api/audio', async (req, res) => {
                     }`
                 }
             ],
-            max_tokens: 1500, // Reduced token limit for speed
+            max_tokens: 800, // Reduced token limit for speed
         });
 
         const jsonStr = completion.choices[0].message.content.replace(/```json|```/g, '').trim();
