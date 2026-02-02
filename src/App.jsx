@@ -575,7 +575,7 @@ export default function DraperApp() {
             timestamp: formatMinSec(index * (duration / frames.length)) 
         }));
 
-        const response = await fetch('http://localhost:3001/api/analyze', { 
+        const response = await fetch('/api/analyze', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ framesWithTime, audio, duration }) 
