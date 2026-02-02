@@ -1,4 +1,4 @@
-export const extractFramesFromVideoFile = async (videoFile, frameCount = 3) => { // EXTREME SPEED: 3 FRAMES
+export const extractFramesFromVideoFile = async (videoFile, frameCount = 4) => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
@@ -21,14 +21,15 @@ export const extractFramesFromVideoFile = async (videoFile, frameCount = 3) => {
         await new Promise((seekResolve) => {
           video.currentTime = time;
           video.onseeked = () => {
-            // EXTREME SPEED: 200px width (Tiny but readable for AI)
-            const scaleFactor = 200 / video.videoWidth;
-            canvas.width = 200;
+            // BALANCED: 300px is the sweet spot for Text OCR + Speed
+            const scaleFactor = 300 / video.videoWidth;
+            canvas.width = 300;
             canvas.height = video.videoHeight * scaleFactor;
 
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // EXTREME SPEED: 0.2 Quality (Low res)
-            frames.push(canvas.toDataURL('image/jpeg', 0.2));
+            
+            // BALANCED: 0.5 Quality (Good enough for AI, small enough for Vercel)
+            frames.push(canvas.toDataURL('image/jpeg', 0.5));
             seekResolve();
           };
         });
@@ -37,6 +38,7 @@ export const extractFramesFromVideoFile = async (videoFile, frameCount = 3) => {
       URL.revokeObjectURL(videoUrl);
       resolve({ frames, duration });
     };
+
     video.onerror = (e) => reject(e);
   });
 };
@@ -50,20 +52,27 @@ export const extractAudioFromVideo = async (videoFile) => {
     const audioContext = new AudioContext();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     
-    // EXTREME SPEED: Only first 15 Seconds
-    const maxDuration = 15; 
+    // BALANCED: 25 Seconds captures the "Hook" and the "Problem"
+    const maxDuration = 25; 
     const trimDuration = Math.min(audioBuffer.duration, maxDuration);
     const trimLength = trimDuration * audioBuffer.sampleRate;
 
-    const offlineContext = new OfflineAudioContext(1, trimLength, audioBuffer.sampleRate);
+    const offlineContext = new OfflineAudioContext(
+      1, 
+      trimLength,
+      audioBuffer.sampleRate
+    );
+
     const source = offlineContext.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(offlineContext.destination);
     source.start(0, 0, trimDuration);
 
     const renderedBuffer = await offlineContext.startRendering();
+    
     return bufferToWave(renderedBuffer, renderedBuffer.length);
   } catch (e) {
+    console.warn("Audio extraction failed", e);
     return null; 
   }
 };
