@@ -37,134 +37,96 @@ const copyToClipboard = (data) => {
   alert("Analysis copied.");
 };
 
-// --- AGENCY-GRADE PDF GENERATOR (PREMIUM ONE-PAGER) ---
+// --- AGENCY-GRADE PDF GENERATOR (ONE PAGER) ---
 const generatePDF = (data) => {
   try {
     if (!data) throw new Error("No data.");
     const doc = new jsPDF();
     const meta = data.meta || {};
     const strategy = data.strategy || {};
-    const creative = data.creative_intelligence || {};
     const production = data.production_analysis || {}; 
     const comms = data.communication_profile || {}; 
     const xray = data.content_xray || {};
     const critique = data.critique || {};
     const takeaways = data.brand_takeaways || [];
 
-    // --- 1. PREMIUM HEADER ---
-    doc.setFillColor(15, 23, 42); // Slate 900
-    doc.rect(0, 0, 210, 40, 'F');
+    // --- HEADER ---
+    doc.setFillColor(15, 23, 42); // Dark Slate
+    doc.rect(0, 0, 210, 45, 'F');
     
-    // Branding
     doc.setFont("helvetica", "bold"); 
-    doc.setFontSize(20); 
+    doc.setFontSize(22); 
     doc.setTextColor(255, 255, 255);
-    doc.text("CREATIVE STRATEGY BRIEF", 14, 18);
+    doc.text("CREATIVE STRATEGY BRIEF", 14, 20);
     
-    // Metadata
-    doc.setFontSize(9); 
+    doc.setFontSize(10); 
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(148, 163, 184); // Slate 400
-    doc.text(`CAMPAIGN: ${meta.product_name || 'Ad Creative'}`, 14, 26);
-    doc.text(`DATE: ${new Date().toLocaleDateString()}  |  FORMAT: ${meta.ad_type || 'Video Ad'}`, 14, 31);
+    doc.setTextColor(148, 163, 184); 
+    doc.text(`CAMPAIGN: ${meta.product_name || 'Ad Creative'}  |  Generated: ${new Date().toLocaleDateString()}`, 14, 30);
 
-    // Score Badge
-    doc.setFillColor(99, 102, 241); // Indigo 500
-    doc.roundedRect(175, 8, 22, 22, 2, 2, 'F');
+    // Score
+    doc.setFillColor(99, 102, 241); 
+    doc.roundedRect(175, 10, 20, 20, 2, 2, 'F');
     doc.setTextColor(255, 255, 255); 
     doc.setFontSize(14); doc.setFont("helvetica", "bold");
-    doc.text(`${meta.quality_score}`, 186, 19, { align: 'center' });
-    doc.setFontSize(6);
-    doc.text("SCORE", 186, 26, { align: 'center' });
+    doc.text(`${meta.quality_score}`, 185, 23, { align: 'center' });
 
-    let currentY = 50;
+    let currentY = 55;
 
-    // --- 2. THE BLUEPRINT (Split Grid Layout) ---
-    // We use two tables side-by-side for maximum data density
-    
-    doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
-    doc.text("1. CAMPAIGN BLUEPRINT", 14, currentY);
-    currentY += 4;
+    // --- SECTION 1: EXECUTIVE SUMMARY (Grid) ---
+    doc.setFontSize(11); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
+    doc.text("1. EXECUTIVE SUMMARY", 14, currentY);
+    currentY += 6;
 
-    // Left Col: Strategy
     autoTable(doc, {
         startY: currentY,
-        head: [['STRATEGIC CORE']],
+        head: [['STRATEGIC CORE', 'PRODUCTION & SIGNALS']],
         body: [
-            [`HOOK:\n${strategy.hook_tactic}`],
-            [`RETENTION:\n${strategy.winning_factor}`],
-            [`CONCEPT:\n"${strategy.one_liner}"`],
-            [`INSIGHT:\n${meta.hero_insight}`]
+            [
+                `HOOK: ${strategy.hook_tactic}\n\nWIN: ${strategy.winning_factor}\n\nCONCEPT: "${strategy.one_liner}"`,
+                `LANGUAGE: ${xray.language}\n\nGEAR: ${production.camera_gear}\n\nTONE: ${comms.voiceover_tone}\n\nCTA: ${comms.cta_text}`
+            ]
         ],
         theme: 'grid',
-        headStyles: { fillColor: [51, 65, 85], fontSize: 8 },
-        styles: { fontSize: 8, cellPadding: 3, valign: 'top', cellWidth: 88 },
-        margin: { left: 14 }
+        headStyles: { fillColor: [15, 23, 42], fontSize: 9, fontStyle: 'bold' },
+        columnStyles: { 
+            0: { cellWidth: 95, fontSize: 9, cellPadding: 5, valign: 'top' }, 
+            1: { cellWidth: 95, fontSize: 9, cellPadding: 5, valign: 'top' } 
+        },
     });
-
-    // Right Col: Signals
-    autoTable(doc, {
-        startY: currentY,
-        head: [['TECHNICAL SIGNALS']],
-        body: [
-            [`LANGUAGE: ${xray.language}\nETHNICITY: ${xray.ethnicity}`],
-            [`GEAR: ${production.camera_gear}\nGRADE: ${production.color_grade}`],
-            [`AUDIO: ${xray.audio_desc}`],
-            [`TONE: ${comms.voiceover_tone}\nCTA: ${comms.cta_text}`]
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [71, 85, 105], fontSize: 8 },
-        styles: { fontSize: 8, cellPadding: 3, valign: 'top', cellWidth: 88 },
-        margin: { left: 108 } // Push to right side
-    });
-
-    // Sync Y position to the taller table
     currentY = doc.lastAutoTable.finalY + 12;
 
-    // --- 3. STRATEGIC PLAYBOOK (Split Color-Coded) ---
-    doc.setFontSize(10); doc.setTextColor(15, 23, 42);
+    // --- SECTION 2: THE PLAYBOOK (The Meat) ---
+    doc.setFontSize(11); doc.setTextColor(15, 23, 42);
     doc.text("2. STRATEGIC PLAYBOOK", 14, currentY);
-    currentY += 4;
+    currentY += 6;
 
-    const maxRows = Math.max(takeaways.length, (critique.missed_opportunities || []).length);
-    const playbookData = [];
-    for(let i=0; i<maxRows; i++) {
-        playbookData.push([
-            takeaways[i] ? `• ${takeaways[i]}` : "",
-            critique.missed_opportunities?.[i] ? `• ${critique.missed_opportunities[i]}` : ""
-        ]);
+    const maxItems = Math.max(takeaways.length, (critique.missed_opportunities || []).length);
+    const playbookRows = [];
+    for (let i = 0; i < maxItems; i++) {
+        const good = takeaways[i] ? `• ${takeaways[i]}` : "";
+        const bad = critique.missed_opportunities?.[i] ? `• ${critique.missed_opportunities[i]}` : "";
+        if(good || bad) playbookRows.push([good, bad]);
     }
 
     autoTable(doc, {
         startY: currentY,
-        head: [['WHAT WORKED (Keep)', 'OPTIMIZATION (Test)']],
-        body: playbookData,
+        head: [['WHAT WORKED (VALIDATION)', 'MISSED OPPORTUNITIES (OPTIMIZATION)']],
+        body: playbookRows,
         theme: 'grid',
-        headStyles: { 
-            fillColor: [255, 255, 255], 
-            textColor: [15, 23, 42], 
-            lineWidth: 0.1, 
-            lineColor: [200, 200, 200] 
-        },
+        headStyles: { fillColor: [79, 70, 229], fontSize: 9, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 4, valign: 'top' },
         columnStyles: {
-            0: { cellWidth: 90, textColor: [22, 163, 74] }, // Emerald Text
-            1: { cellWidth: 90, textColor: [194, 65, 12] }  // Amber Text
-        },
-        styles: { fontSize: 8, cellPadding: 3, valign: 'top' },
-        didParseCell: (data) => {
-            // Custom Header Colors
-            if (data.section === 'head') {
-                if (data.column.index === 0) data.cell.styles.fillColor = [220, 252, 231]; // Light Green Bg
-                if (data.column.index === 1) data.cell.styles.fillColor = [255, 237, 213]; // Light Orange Bg
-            }
+            0: { cellWidth: 95, textColor: [22, 163, 74] }, // Green
+            1: { cellWidth: 95, textColor: [180, 83, 9] }   // Amber
         }
     });
     currentY = doc.lastAutoTable.finalY + 12;
 
-    // --- 4. NARRATIVE BEAT SHEET ---
-    doc.setFontSize(10); doc.setTextColor(15, 23, 42);
-    doc.text("3. NARRATIVE BEAT SHEET", 14, currentY);
-    currentY += 4;
+    // --- SECTION 3: NARRATIVE ARC ---
+    doc.setFontSize(11); doc.setTextColor(15, 23, 42);
+    doc.text("3. NARRATIVE ARC", 14, currentY);
+    currentY += 6;
 
     const sceneRows = data.scene_by_scene?.map(s => [s.timecode, s.segment.toUpperCase(), s.visual]) || [];
 
@@ -172,24 +134,19 @@ const generatePDF = (data) => {
         startY: currentY,
         head: [['TIME', 'PHASE', 'VISUAL ACTION']],
         body: sceneRows,
-        theme: 'plain',
-        headStyles: { fillColor: [241, 245, 249], textColor: [100, 116, 139], fontSize: 7, fontStyle: 'bold' },
-        styles: { fontSize: 8, cellPadding: 2,  borderBottom: '1px solid #e2e8f0' },
+        theme: 'striped',
+        headStyles: { fillColor: [100, 116, 139], fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: { 
-            0: { cellWidth: 15, fontStyle: 'bold' },
-            1: { cellWidth: 35, textColor: [99, 102, 241], fontStyle: 'bold', fontSize: 7 },
+            0: { cellWidth: 20, fontStyle: 'bold' },
+            1: { cellWidth: 30, fontStyle: 'bold', textColor: [79, 70, 229] },
             2: { cellWidth: 'auto' }
         }
     });
 
-    // --- FOOTER ---
     const pageHeight = doc.internal.pageSize.height;
-    doc.setFillColor(248, 250, 252);
-    doc.rect(0, pageHeight - 15, 210, 15, 'F');
-    
-    doc.setFontSize(7); doc.setTextColor(148, 163, 184);
-    doc.text("CONFIDENTIAL  |  GENERATED BY DRAPER AI", 14, pageHeight - 6);
-    doc.text(new Date().toISOString(), 160, pageHeight - 6);
+    doc.setFontSize(8); doc.setTextColor(150);
+    doc.text("Powered by Draper AI Engine", 105, pageHeight - 10, { align: 'center' });
 
     doc.save(`${meta.product_name}_StrategyOnePager.pdf`);
   } catch (e) { alert("PDF Generation Failed: " + e.message); }
@@ -231,7 +188,7 @@ const Card = ({ children, className = "", title, icon: Icon, action }) => (
 );
 
 const LoadingView = ({ progress, frames }) => {
-    const messages = ["Extracting visual keyframes...", "Analyzing color grading...", "Detecting narrative arc...", "Synthesizing strategy..."];
+    const messages = ["Extracting visual keyframes...", "Detecting spoken language...", "Synthesizing strategy...", "Generating creative brief..."];
     const [msgIndex, setMsgIndex] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => setMsgIndex(prev => (prev + 1) % messages.length), 3000); 
@@ -291,10 +248,6 @@ const UploadView = ({ onFileSelect }) => {
         </div>
     );
 };
-
-// ==========================================
-// 3. THE REFINED STORYBOARD (Timeline V3)
-// ==========================================
 
 const VisualTimeline = ({ scenes, onJump, frames, videoDuration }) => {
     const getFrameForTime = (timecode) => {
@@ -554,8 +507,10 @@ export default function DraperApp() {
   const handleFile = async (file) => {
     setView('loading');
     setVideoUrl(URL.createObjectURL(file));
-    setProgress(10);
+    setProgress(5); 
+    
     try {
+        // 1. Extract Frames & Audio
         const [extractResult, audio] = await Promise.all([
             extractFramesFromVideoFile(file, 8), 
             extractAudioFromVideo(file)
@@ -563,25 +518,42 @@ export default function DraperApp() {
         
         const frames = extractResult.frames || [];
         const duration = extractResult.duration || 0;
-
         setPreviewFrames(frames);
         setVideoDuration(duration);
-        
-        setProgress(40);
-        const timer = setInterval(() => setProgress(p => Math.min(p + 5, 90)), 1000);
         
         const framesWithTime = frames.map((frame, index) => ({
             image: frame,
             timestamp: formatMinSec(index * (duration / frames.length)) 
         }));
 
+        // --- STEP 1: TRANSCRIBE (Separate Call) ---
+        setProgress(20); 
+        let transcriptText = "No audio detected.";
+        
+        if (audio) {
+            const transResponse = await fetch('/api/transcribe', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ audio }) 
+            });
+            if (transResponse.ok) {
+                const transData = await transResponse.json();
+                transcriptText = transData.text;
+            }
+        }
+
+        // --- STEP 2: ANALYZE (Separate Call) ---
+        setProgress(50); 
+        const timer = setInterval(() => setProgress(p => Math.min(p + 1, 95)), 200);
+
         const response = await fetch('/api/analyze', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ framesWithTime, audio, duration }) 
+            body: JSON.stringify({ framesWithTime, transcript: transcriptText, duration }) 
         });
         
-        clearInterval(timer); setProgress(100);
+        clearInterval(timer); 
+        setProgress(100);
         
         if (!response.ok) {
             const errText = await response.text();
@@ -591,6 +563,7 @@ export default function DraperApp() {
         const result = await response.json();
         setAnalysisData(result);
         setTimeout(() => setView('report'), 500);
+
     } catch (e) { 
         console.error(e); 
         alert(`Analysis Failed: ${e.message}`); 
