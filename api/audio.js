@@ -26,9 +26,7 @@ app.post('/api/audio', async (req, res) => {
         const { audio } = req.body;
         if (!audio) return res.json({ error: "No audio" });
 
-        console.log("[Draper] Audio Worker: Starting...");
-        
-        // 1. Transcribe
+        // 1. Transcribe (Fast because audio is now <30s)
         tempAudioPath = saveTempAudioFile(audio);
         const transcription = await openai.audio.transcriptions.create({
             file: fs.createReadStream(tempAudioPath),
@@ -37,7 +35,7 @@ app.post('/api/audio', async (req, res) => {
         });
         const text = transcription.text || "No spoken words.";
 
-        // 2. Strategic Analysis (Based on Text)
+        // 2. Strategy Analysis (Concise Mode)
         const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             response_format: { type: "json_object" },
@@ -47,9 +45,10 @@ app.post('/api/audio', async (req, res) => {
                     content: `Analyze this ad script for Strategy & Language.
                     Script: "${text}"
                     
-                    *** RULES ***
-                    1. LANGUAGE: Detect specific Dravidian languages (Kannada, Tamil, Telugu) if present.
-                    2. PLAYBOOK: Generate 6-8 distinct "What Works" points and 4-6 "Missed Opps".
+                    *** SPEED RULES ***
+                    1. BE CONCISE. Do not write paragraphs. Use punchy bullet points.
+                    2. LANGUAGE: Detect Dravidian languages (Kannada, Tamil, Telugu) if present.
+                    3. PLAYBOOK: Generate 4-5 high-impact points per section.
 
                     Return JSON:
                     {
@@ -57,11 +56,12 @@ app.post('/api/audio', async (req, res) => {
                         "content_xray_audio": { "language": "string", "script": "string", "audio_desc": "string" },
                         "communication_profile": { "voiceover_tone": "string", "cta_type": "string", "cta_text": "string", "psychological_triggers": ["Trigger"] },
                         "strategy": { "one_liner": "string", "hook_tactic": "string", "winning_factor": "string" },
-                        "critique": { "missed_opportunities": ["Point 1", "Point 2", "Point 3", "Point 4"] },
-                        "brand_takeaways": ["Win 1", "Win 2", "Win 3", "Win 4", "Win 5", "Win 6"]
+                        "critique": { "missed_opportunities": ["Point 1", "Point 2", "Point 3"] },
+                        "brand_takeaways": ["Win 1", "Win 2", "Win 3", "Win 4"]
                     }`
                 }
-            ]
+            ],
+            max_tokens: 1500, // Reduced token limit for speed
         });
 
         const jsonStr = completion.choices[0].message.content.replace(/```json|```/g, '').trim();
