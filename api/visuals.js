@@ -56,7 +56,7 @@ app.post('/api/visuals', async (req, res) => {
         },
         { role: "user", content: `Timestamps: ${framesToProcess.map(f => f.timestamp).join(", ")}` }
       ],
-      max_tokens: 2000, 
+      max_tokens: 800, 
     });
 
     const jsonStr = completion.choices[0].message.content.replace(/```json|```/g, '').trim();
